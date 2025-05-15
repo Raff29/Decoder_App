@@ -2,36 +2,79 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Upload, FileUp, CheckCircle, AlertCircle } from "lucide-react"
+import { Upload, FileUp, CheckCircle, AlertCircle, AlertTriangle, ShieldCheck } from "lucide-react"
+import { validateFile } from "@/lib/validation"
+import { StopProcessButton } from "@/components/StopProcessButton"
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isValidating, setIsValidating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [totalBatches, setTotalBatches] = useState(0)
   const [currentBatch, setCurrentBatch] = useState(0)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(0)
-  const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle")
+  const [status, setStatus] = useState<"idle" | "processing" | "success" | "error" | "warning">("idle")
   const [errorMessage, setErrorMessage] = useState("")
   const [downloadUrl, setDownloadUrl] = useState("")
   const [downloadFilename, setDownloadFilename] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Add a ref to track if file should be cleared after process
+  const clearFileRef = useRef(false)
+
+  // Clear file when status changes to success, error, or idle after stop
+  useEffect(() => {
+    if (clearFileRef.current && (status === "success" || status === "error" || status === "idle")) {
+      setFile(null)
+      clearFileRef.current = false
+    }
+  }, [status])
+
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+    }
+  }, [])
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0])
+      const selectedFile = e.target.files[0]
+
       setStatus("idle")
       setErrorMessage("")
       setProgress(0)
       setCurrentBatch(0)
       setTotalBatches(0)
       setDownloadUrl("")
+
+      setIsValidating(true)
+
+      try {
+        const validationResult = await validateFile(selectedFile)
+
+        if (!validationResult.isValid) {
+          setStatus("warning")
+          setErrorMessage(validationResult.error || "Invalid file")
+          setFile(null)
+        } else {
+          setFile(selectedFile)
+        }
+      } catch (error) {
+        setStatus("error")
+        setErrorMessage("File validation failed")
+        setFile(null)
+      } finally {
+        setIsValidating(false)
+      }
     }
   }
 
@@ -56,7 +99,6 @@ export default function Home() {
     formData.append("file", file)
 
     try {
-      // Start the file upload and processing
       const uploadResponse = await fetch("/api/upload", {
         method: "POST",
         body: formData,
@@ -69,7 +111,6 @@ export default function Home() {
 
       const { jobId } = await uploadResponse.json()
 
-      // Connect to SSE endpoint for progress updates
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
       }
@@ -139,16 +180,47 @@ export default function Home() {
                 accept=".xlsx,.xls"
                 className="hidden"
               />
-              <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-              <p className="text-sm text-gray-600">{file ? file.name : "Click to upload Excel file"}</p>
-              <p className="text-xs text-gray-400 mt-1">(.xlsx, .xls)</p>
+              {isValidating ? (
+                <div className="flex flex-col items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mb-2"></div>
+                  <p className="text-sm text-gray-600">Validating file...</p>
+                </div>
+              ) : (
+                <>
+                  <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
+                  <p className="text-sm text-gray-600">{file ? file.name : "Click to upload Excel file"}</p>
+                  <p className="text-xs text-gray-400 mt-1">(.xlsx, .xls)</p>
+                </>
+              )}
             </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 flex items-start">
+              <ShieldCheck className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium text-blue-800">Privacy Notice</h3>
+                <p className="text-blue-700 text-sm mt-1">
+                  Your files are processed securely and are not stored permanently. All uploaded files and generated
+                  results are automatically deleted after processing.
+                </p>
+              </div>
+            </div>
+
+            {status === "warning" && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 flex items-start">
+                <AlertTriangle className="h-5 w-5 text-yellow-500 mr-3 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-medium text-yellow-800">File validation warning</h3>
+                  <p className="text-yellow-700 text-sm mt-1">{errorMessage}</p>
+                  <p className="text-yellow-700 text-sm mt-1">Please select a different file.</p>
+                </div>
+              </div>
+            )}
 
             {file && (
               <div className="flex justify-center">
                 <Button
                   onClick={processFile}
-                  disabled={isProcessing || !file}
+                  disabled={isProcessing || !file || isValidating}
                   className="bg-[#E31E24] hover:bg-[#C41A1F] text-white"
                 >
                   <FileUp className="mr-2 h-4 w-4" />
@@ -179,6 +251,25 @@ export default function Home() {
                     <p className="font-medium">{formatTime(estimatedTimeRemaining)}</p>
                   </div>
                 </div>
+
+                {eventSourceRef.current && (
+                  <div className="flex justify-center mt-4">
+                    <StopProcessButton
+                      jobId={(() => {
+                        const url = eventSourceRef.current?.url
+                        const match = url?.match(/jobId=([\w-]+)/)
+                        return match ? match[1] : ""
+                      })()}
+                      onStopped={() => {
+                        eventSourceRef.current?.close()
+                        setStatus("idle")
+                        setIsProcessing(false)
+                        setErrorMessage("")
+                        clearFileRef.current = true // Mark to clear file on next status change
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -197,6 +288,8 @@ export default function Home() {
                       Download Results
                     </a>
                   )}
+                  {/* Mark to clear file after success */}
+                  {clearFileRef.current = true}
                 </div>
               </div>
             )}
@@ -210,6 +303,8 @@ export default function Home() {
                     {errorMessage || "An error occurred while processing the file."}
                   </p>
                   <p className="text-red-700 text-sm mt-1">Please check the console for more details.</p>
+                  {/* Mark to clear file after error */}
+                  {clearFileRef.current = true}
                 </div>
               </div>
             )}
