@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { readFile } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
+import { cleanupJobFiles } from "@/lib/cleanup"
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -15,12 +16,10 @@ export async function GET(request: NextRequest) {
     const jobsDir = join(process.cwd(), "jobs")
     const jobStatusPath = join(jobsDir, `${jobId}.json`)
 
-    // Check if job exists
     if (!existsSync(jobStatusPath)) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 })
     }
 
-    // Read job status
     const jobStatusRaw = await readFile(jobStatusPath, "utf-8")
     const jobStatus = JSON.parse(jobStatusRaw)
 
@@ -32,11 +31,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Output file not found" }, { status: 404 })
     }
 
-    // Read the output file
     const fileContent = await readFile(jobStatus.outputPath)
 
-    // Set appropriate headers for file download
     const filename = jobStatus.outputFilename || "decoded_vins.csv"
+
+ 
+    setTimeout(() => {
+      cleanupJobFiles(jobId).catch(console.error)
+    }, 1000) 
 
     return new NextResponse(fileContent, {
       headers: {

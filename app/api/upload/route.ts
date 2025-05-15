@@ -5,10 +5,11 @@ import { exec } from "child_process"
 import { promisify } from "util"
 import { v4 as uuidv4 } from "uuid"
 import { existsSync } from "fs"
+import * as XLSX from "xlsx"
+import { MAX_FILE_SIZE, VIN_REGEX } from "@/lib/validation"
 
 const execPromise = promisify(exec)
 
-// Create necessary directories
 const ensureDirectories = async () => {
   const uploadsDir = join(process.cwd(), "uploads")
   const outputsDir = join(process.cwd(), "outputs")
@@ -19,6 +20,69 @@ const ensureDirectories = async () => {
   if (!existsSync(jobsDir)) await mkdir(jobsDir, { recursive: true })
 
   return { uploadsDir, outputsDir, jobsDir }
+}
+
+async function validateExcelFile(fileBuffer: Buffer, fileName: string) {
+  if (!fileName.toLowerCase().endsWith(".xlsx") && !fileName.toLowerCase().endsWith(".xls")) {
+    return { isValid: false, error: "Only Excel files (.xlsx, .xls) are supported" }
+  }
+
+  try {
+    const workbook = XLSX.read(fileBuffer, { type: "buffer" })
+
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      return { isValid: false, error: "The Excel file does not contain any sheets" }
+    }
+
+    const sheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[sheetName]
+
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+    if (!data || data.length === 0) {
+      return { isValid: false, error: "The Excel file is empty" }
+    }
+
+    let validRowCount = 0
+    let vinCount = 0
+    let invalidVins = 0
+
+    const rowsToCheck = Math.min(data.length, 100)
+    for (let i = 0; i < rowsToCheck; i++) {
+      const row = data[i] as any[]
+      if (row && row.length >= 2) {
+        validRowCount++
+
+        const potentialVin = String(row[1]).trim().toUpperCase()
+        if (potentialVin.length === 17) {
+          vinCount++
+          if (!VIN_REGEX.test(potentialVin)) {
+            invalidVins++
+          }
+        }
+      }
+    }
+
+    if (validRowCount === 0) {
+      return { isValid: false, error: "No valid data rows found in the Excel file" }
+    }
+
+    if (vinCount === 0) {
+      return { isValid: false, error: "No potential VINs found in the second column" }
+    }
+
+    if (invalidVins > vinCount / 2) {
+      return { isValid: false, error: "Many entries in the second column do not appear to be valid VINs" }
+    }
+
+    return { isValid: true }
+  } catch (error) {
+    console.error("Excel validation error:", error)
+    return {
+      isValid: false,
+      error: "Failed to parse the Excel file. The file may be corrupted or in an unsupported format",
+    }
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -32,20 +96,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Validate file type
-    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
-      return NextResponse.json({ error: "Only Excel files (.xlsx, .xls) are supported" }, { status: 400 })
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB` },
+        { status: 400 },
+      )
     }
 
-    // Generate a unique job ID
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+
+    const validationResult = await validateExcelFile(fileBuffer, file.name)
+    if (!validationResult.isValid) {
+      return NextResponse.json({ error: validationResult.error }, { status: 400 })
+    }
+
     const jobId = uuidv4()
 
-    // Save the uploaded file
-    const fileBuffer = Buffer.from(await file.arrayBuffer())
     const filePath = join(uploadsDir, `${jobId}_${file.name}`)
     await writeFile(filePath, fileBuffer)
 
-    // Create a job status file
     const jobStatusPath = join(jobsDir, `${jobId}.json`)
     const jobStatus = {
       id: jobId,
@@ -64,15 +133,12 @@ export async function POST(request: NextRequest) {
 
     await writeFile(jobStatusPath, JSON.stringify(jobStatus))
 
-    // Start the Python script in the background
     const scriptPath = join(process.cwd(), "scripts", "vin_decoder.py")
 
-    // Execute the Python script asynchronously
-    // Use a clean environment to avoid passing sensitive env vars
+
     const env = {
+      NODE_ENV: process.env.NODE_ENV || 'development',
       PATH: process.env.PATH,
-      // Add only the environment variables needed by the Python script
-      // Explicitly exclude npm-related variables
       ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("NPM_"))),
     }
 
@@ -81,7 +147,6 @@ export async function POST(request: NextRequest) {
       { env },
     ).catch((error) => {
       console.error("Error executing Python script:", error)
-      // Update job status with error
       const errorStatus = {
         ...jobStatus,
         status: "error",
