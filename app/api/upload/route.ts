@@ -10,16 +10,22 @@ import { MAX_FILE_SIZE, VIN_REGEX } from "@/lib/validation"
 
 const execPromise = promisify(exec)
 
+const getBaseDir = () => {
+  // Use /tmp for serverless (Vercel), otherwise use process.cwd()
+  return process.env.VERCEL || process.env.NOW_REGION ? '/tmp' : process.cwd();
+};
+
 const ensureDirectories = async () => {
-  const uploadsDir = join(process.cwd(), "uploads")
-  const outputsDir = join(process.cwd(), "outputs")
-  const jobsDir = join(process.cwd(), "jobs")
+  const baseDir = getBaseDir();
+  const uploadsDir = join(baseDir, "uploads");
+  const outputsDir = join(baseDir, "outputs");
+  const jobsDir = join(baseDir, "jobs");
 
-  if (!existsSync(uploadsDir)) await mkdir(uploadsDir, { recursive: true })
-  if (!existsSync(outputsDir)) await mkdir(outputsDir, { recursive: true })
-  if (!existsSync(jobsDir)) await mkdir(jobsDir, { recursive: true })
+  if (!existsSync(uploadsDir)) await mkdir(uploadsDir, { recursive: true });
+  if (!existsSync(outputsDir)) await mkdir(outputsDir, { recursive: true });
+  if (!existsSync(jobsDir)) await mkdir(jobsDir, { recursive: true });
 
-  return { uploadsDir, outputsDir, jobsDir }
+  return { uploadsDir, outputsDir, jobsDir };
 }
 
 async function validateExcelFile(fileBuffer: Buffer, fileName: string) {
