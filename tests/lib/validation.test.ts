@@ -1,4 +1,4 @@
-import { MAX_FILE_SIZE, VIN_REGEX, validateFile } from './validation'
+import { MAX_FILE_SIZE, VIN_REGEX, validateFile } from '../../lib/validation'
 
 describe('validation.ts', () => {
   it('should have a valid MAX_FILE_SIZE', () => {

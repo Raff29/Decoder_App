@@ -1,4 +1,4 @@
-import * as cleanup from './cleanup'
+import * as cleanup from '../../lib/cleanup'
 
 describe('cleanup.ts', () => {
   it('should export something', () => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { StopProcessButton } from './StopProcessButton'
+import { StopProcessButton } from '../../components/StopProcessButton'
 
 describe('StopProcessButton', () => {
   it('renders and calls onStopped on success', async () => {

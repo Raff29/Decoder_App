@@ -12,7 +12,11 @@ const execPromise = promisify(exec)
 
 const getBaseDir = () => {
   // Use /tmp for serverless (Vercel), otherwise use process.cwd()
-  return process.env.VERCEL || process.env.NOW_REGION ? '/tmp' : process.cwd();
+  // Vercel sets process.env.AWS_LAMBDA_FUNCTION_VERSION in serverless
+  if (process.env.VERCEL || process.env.NOW_REGION || process.env.AWS_LAMBDA_FUNCTION_VERSION) {
+    return '/tmp';
+  }
+  return process.cwd();
 };
 
 const ensureDirectories = async () => {

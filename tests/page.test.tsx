@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom';
-import Home from './page'
+import Home from '../app/page'
 
 jest.mock('@/components/StopProcessButton', () => ({ StopProcessButton: () => <button>Stop Process</button> }))
 jest.mock('@/lib/validation', () => ({ validateFile: jest.fn().mockResolvedValue({ isValid: true }) }))
