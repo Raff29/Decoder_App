@@ -7,7 +7,6 @@ import os
 import argparse
 from datetime import datetime
 
-# Parse command line arguments
 parser = argparse.ArgumentParser(description='Decode VINs from Excel file')
 parser.add_argument('--input', required=True, help='Path to input Excel file')
 parser.add_argument('--job-id', required=True, help='Unique job ID')
@@ -15,7 +14,6 @@ parser.add_argument('--jobs-dir', required=True, help='Directory for job status 
 parser.add_argument('--outputs-dir', required=True, help='Directory for output files')
 args = parser.parse_args()
 
-# Constants
 API_URL = "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/"
 DESIRED_FIELDS = [
     "VIN", "Make", "Model", "ModelYear", "ErrorCode", "ErrorText"
@@ -23,13 +21,11 @@ DESIRED_FIELDS = [
 BATCH_SIZE = 50
 DELAY_BETWEEN_BATCHES = 0.5
 
-# Function to update job status
 def update_job_status(status_data):
     job_status_path = os.path.join(args.jobs_dir, f"{args.job_id}.json")
     with open(job_status_path, 'w') as f:
         json.dump(status_data, f)
 
-# Function to decode batch with retry
 def decode_batch_with_retry(vins, retries=3, delay=5):
     form_data_payload = {"format": "json", "data": ";".join(vins)}
     for attempt in range(retries):
@@ -65,14 +61,11 @@ def decode_batch_with_retry(vins, retries=3, delay=5):
     print(final_error_text)
     return [{"OriginalVIN": vin, "ErrorCode": "REQUEST_FAILED_MAX_RETRIES", "ErrorText": final_error_text} for vin in vins]
 
-# Function to chunk list
 def chunk_list(lst, size):
     for i in range(0, len(lst), size):
         yield lst[i:i+size]
 
-# Main execution
 try:
-    # Initialize job status
     job_status = {
         "id": args.job_id,
         "status": "processing",
@@ -90,23 +83,19 @@ try:
     }
     update_job_status(job_status)
 
-    # Read the Excel file
     print(f"Reading VINs from {args.input}...")
     df = pd.read_excel(args.input, header=None)
     
-    # Extract OEM codes from the first column
     oem_codes = set()
     if len(df.columns) > 0:
         for oem in df.iloc[:, 0]:
             if isinstance(oem, str) and len(oem) >= 2:
                 oem_codes.add(oem[:2].upper())
     
-    # Generate output filename
     oem_part = "_".join(sorted(oem_codes)) if oem_codes else "UNKNOWN"
     output_filename = f"decoded_{oem_part}_VINS_final.csv"
     output_path = os.path.join(args.outputs_dir, output_filename)
     
-    # Extract VINs from the second column
     vin_column_index = 1
     all_vins = []
     if len(df.columns) > vin_column_index:
@@ -117,12 +106,10 @@ try:
     if not all_vins:
         raise ValueError("No valid VINs found in the file.")
     
-    # Calculate total batches
     num_batches = (len(all_vins) + BATCH_SIZE - 1) // BATCH_SIZE
     job_status["totalBatches"] = num_batches
     update_job_status(job_status)
     
-    # Process VINs
     processed_count = 0
     start_time = time.time()
     
@@ -132,14 +119,12 @@ try:
         writer.writeheader()
         
         for i, batch_vins in enumerate(chunk_list(all_vins, BATCH_SIZE)):
-            # Update job status
             current_time = time.time()
             elapsed_time = current_time - start_time
             job_status["currentBatch"] = i + 1
             job_status["progress"] = (i + 1) / num_batches * 100
             job_status["elapsedTime"] = elapsed_time
             
-            # Calculate estimated time remaining
             if i > 0:
                 avg_time_per_batch = elapsed_time / i
                 remaining_batches = num_batches - i
@@ -148,7 +133,6 @@ try:
             
             update_job_status(job_status)
             
-            # Process batch
             results_from_api_batch = decode_batch_with_retry(batch_vins)
             
             for j, single_vin_api_result_item in enumerate(results_from_api_batch):
@@ -242,7 +226,6 @@ try:
             if i < num_batches - 1:
                 time.sleep(DELAY_BETWEEN_BATCHES)
     
-    # Update job status to completed
     job_status["status"] = "completed"
     job_status["progress"] = 100
     job_status["outputPath"] = output_path
@@ -254,7 +237,6 @@ try:
     print(f"Done! {processed_count} VINs processed. See {output_path}")
 
 except Exception as e:
-    # Update job status with error
     error_message = str(e)
     print(f"ERROR: {error_message}")
     
