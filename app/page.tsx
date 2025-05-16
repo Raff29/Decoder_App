@@ -9,10 +9,12 @@ import { Progress } from "@/components/ui/progress";
 import {
   Upload,
   FileUp,
+  FileText,
   CheckCircle,
   AlertCircle,
   AlertTriangle,
   ShieldCheck,
+  X,
 } from "lucide-react";
 import { validateFile } from "@/lib/validation";
 import { StopProcessButton } from "@/components/StopProcessButton";
@@ -92,6 +94,14 @@ export default function Home() {
     fileInputRef.current?.click();
   };
 
+  const handleRemoveFile = () => {
+    setFile(null);
+    setStatus("idle");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const processFile = async () => {
     if (!file) return;
 
@@ -165,6 +175,16 @@ export default function Home() {
     }
   };
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (
+      Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+    );
+  };
+
   const formatTime = (seconds: number): string => {
     if (seconds < 60) return `${Math.round(seconds)}s`;
     const minutes = Math.floor(seconds / 60);
@@ -181,33 +201,74 @@ export default function Home() {
 
         <Card className="p-6 shadow-lg">
           <div className="space-y-6">
-            <div
-              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 transition-colors"
-              onClick={handleUploadClick}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".xlsx,.xls"
-                className="hidden"
-              />
-              {isValidating ? (
-                <div className="flex flex-col items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mb-2"></div>
-                  <p className="text-sm text-gray-600">Validating file...</p>
+            {!file ? (
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={handleUploadClick}
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                />
+                {isValidating ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mb-2"></div>
+                    <p className="text-sm text-gray-600">Validating file...</p>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
+                    <p className="text-sm text-gray-600">
+                      {" "}
+                      Click to upload Excel file
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">(.xlsx, .xls)</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-gray-50 p-4 flex items-center justify-between border-b border-gray-200">
+                  <div className="flex items-center">
+                    <div className="bg-[#E31E24] p-2 rounded-md mr-3">
+                      <FileText className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-800">{file.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatFileSize(file.size)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRemoveFile}
+                    className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                    aria-label="Remove file"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-              ) : (
-                <>
-                  <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-                  <p className="text-sm text-gray-600">
-                    {file ? file.name : "Click to upload Excel file"}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">(.xlsx, .xls)</p>
-                </>
-              )}
-            </div>
-
+                <div className="p-4 bg-white">
+                  <div className="flex items-center text-sm text-gray-600 mb-3">
+                    <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                    <span>File validated successfully</span>
+                  </div>
+                  <div className="flex justify-center">
+                    <Button
+                      onClick={processFile}
+                      disabled={isProcessing || isValidating}
+                      className="bg-[#E31E24] hover:bg-[#C41A1F] text-white w-full"
+                    >
+                      <FileUp className="mr-2 h-4 w-4" />
+                      Process VINs
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4 flex items-start">
               <ShieldCheck className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
               <div>
@@ -232,19 +293,6 @@ export default function Home() {
                     Please select a different file.
                   </p>
                 </div>
-              </div>
-            )}
-
-            {file && (
-              <div className="flex justify-center">
-                <Button
-                  onClick={processFile}
-                  disabled={isProcessing || !file || isValidating}
-                  className="bg-[#E31E24] hover:bg-[#C41A1F] text-white"
-                >
-                  <FileUp className="mr-2 h-4 w-4" />
-                  Process VINs
-                </Button>
               </div>
             )}
 
