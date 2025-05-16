@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { readFile } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
-import { cleanupJobFiles } from "@/lib/cleanup"
+import { cleanupJobFiles } from "@/lib/jobCleanup"
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams

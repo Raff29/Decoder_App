@@ -1,38 +1,70 @@
-import type { NextRequest } from "next/server"
-import { readFile } from "fs/promises"
-import { join } from "path"
-import { existsSync } from "fs"
-import { scheduleCleanup } from "@/lib/cleanup"
+import type { NextRequest } from "next/server";
+import { readFile } from "fs/promises";
+import { join } from "path";
+import { existsSync } from "fs";
+import { scheduleCleanup } from "@/lib/jobCleanup";
+
+// Polyfill Response for Node.js/Jest if not available
+// @ts-ignore
+const WebResponse =
+  typeof Response !== "undefined"
+    ? Response
+    : class {
+        body: any;
+        status: number;
+        headers: { get: (key: string) => any };
+        constructor(body: any, init?: any) {
+          this.body = body;
+          this.status = init?.status ?? 200;
+          this.headers = {
+            get: (key: string) => (init?.headers ? init.headers[key] : null),
+          };
+        }
+        async text() {
+          return this.body;
+        }
+        async json() {
+          return JSON.parse(this.body);
+        }
+      };
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams
-  const jobId = searchParams.get("jobId")
+  const searchParams = request.nextUrl.searchParams;
+  const jobId = searchParams.get("jobId");
 
   if (!jobId) {
-    return new Response(JSON.stringify({ error: "Job ID is required" }), {
+    return new WebResponse(JSON.stringify({ error: "Job ID is required" }), {
       status: 400,
       headers: {
         "Content-Type": "application/json",
       },
-    })
+    });
   }
 
-  const encoder = new TextEncoder()
+  const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const jobsDir = join(process.cwd(), "jobs")
-      const jobStatusPath = join(jobsDir, `${jobId}.json`)
+      let intervalId: any;
+      const jobsDir = join(process.cwd(), "jobs");
+      const jobStatusPath = join(jobsDir, `${jobId}.json`);
 
       if (!existsSync(jobStatusPath)) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", message: "Job not found" })}\n\n`))
-        controller.close()
-        return
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "error",
+              message: "Job not found",
+            })}\n\n`
+          )
+        );
+        controller.close();
+        return;
       }
 
       const sendUpdate = async () => {
         try {
-          const jobStatusRaw = await readFile(jobStatusPath, "utf-8")
-          const jobStatus = JSON.parse(jobStatusRaw)
+          const jobStatusRaw = await readFile(jobStatusPath, "utf-8");
+          const jobStatus = JSON.parse(jobStatusRaw);
 
           if (jobStatus.status === "processing") {
             controller.enqueue(
@@ -44,12 +76,12 @@ export async function GET(request: NextRequest) {
                   progress: jobStatus.progress,
                   elapsedTime: jobStatus.elapsedTime,
                   estimatedTimeRemaining: jobStatus.estimatedTimeRemaining,
-                })}\n\n`,
-              ),
-            )
+                })}\n\n`
+              )
+            );
           } else if (jobStatus.status === "completed") {
-            const filename = jobStatus.outputFilename || "decoded_vins.csv"
-            const downloadUrl = `/api/download?jobId=${jobId}`
+            const filename = jobStatus.outputFilename || "decoded_vins.csv";
+            const downloadUrl = `/api/download?jobId=${jobId}`;
 
             controller.enqueue(
               encoder.encode(
@@ -57,61 +89,62 @@ export async function GET(request: NextRequest) {
                   type: "complete",
                   downloadUrl,
                   filename,
-                })}\n\n`,
-              ),
-            )
+                })}\n\n`
+              )
+            );
 
-            scheduleCleanup(jobId, 5 * 60 * 1000)
+            scheduleCleanup(jobId, 5 * 60 * 1000);
 
-            clearInterval(intervalId)
-            controller.close()
+            clearInterval(intervalId);
+            controller.close();
           } else if (jobStatus.status === "error") {
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({
                   type: "error",
-                  message: jobStatus.error || "An error occurred during processing",
-                })}\n\n`,
-              ),
-            )
+                  message:
+                    jobStatus.error || "An error occurred during processing",
+                })}\n\n`
+              )
+            );
 
-            scheduleCleanup(jobId, 5 * 60 * 1000)
+            scheduleCleanup(jobId, 5 * 60 * 1000);
 
-            clearInterval(intervalId)
-            controller.close()
+            clearInterval(intervalId);
+            controller.close();
           }
         } catch (error) {
-          console.error("Error sending update:", error)
+          console.error("Error sending update:", error);
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({
                 type: "error",
                 message: "Failed to get job status",
-              })}\n\n`,
-            ),
-          )
+              })}\n\n`
+            )
+          );
 
-          clearInterval(intervalId)
-          controller.close()
+          clearInterval(intervalId);
+          controller.close();
         }
-      }
+      };
 
-      await sendUpdate()
+      await sendUpdate();
 
-      const intervalId = setInterval(sendUpdate, 1000)
+      intervalId = setInterval(sendUpdate, 1000);
 
       request.signal.addEventListener("abort", () => {
-        clearInterval(intervalId)
-        controller.close()
-      })
+        clearInterval(intervalId);
+        controller.close();
+      });
     },
-  })
+  });
 
-  return new Response(stream, {
+  return new WebResponse(stream, {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     },
-  })
+  });
 }
