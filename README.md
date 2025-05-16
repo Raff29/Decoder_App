@@ -74,7 +74,7 @@ public/             # Static assets
 - **/api/progress:** Server-Sent Events (SSE) for real-time job progress.
 - **/api/progress/stop:** Stop a running job.
 - **/api/download:** Download processed results.
-- **VIN Decoding:** Handled by a Python script (`scripts/vin_decoder.py`).
+- **VIN Decoding:** Handled by a Node.js script (`scripts/vin_decoder.js`).
 
 ---
 
