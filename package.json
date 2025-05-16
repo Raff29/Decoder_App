@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run lint && npm run type-check && next build",
     "start": "next start",
     "lint": "next lint",
+    "type-check": "tsx --noEmit",
     "cleanup": "ts-node scripts/cleanup.ts"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "next-themes": "^0.4.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "rimraf": "^6.0.1",
     "tailwind-merge": "^2.2.2",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^9.0.1",
