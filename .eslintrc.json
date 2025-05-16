@@ -1,0 +1,7 @@
+{
+  "extends": ["next", "next/core-web-vitals", "prettier"],
+  "plugins": [],
+  "rules": {
+    // Add custom rules here if needed
+  }
+}
