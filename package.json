@@ -7,7 +7,7 @@
     "build": "npm run lint && npm run type-check && next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsx --noEmit",
+    "type-check": "tsc --noEmit",
     "cleanup": "ts-node scripts/cleanup.ts"
   },
   "dependencies": {
