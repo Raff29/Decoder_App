@@ -1,164 +1,176 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Upload, FileUp, CheckCircle, AlertCircle, AlertTriangle, ShieldCheck } from "lucide-react"
-import { validateFile } from "@/lib/validation"
-import { StopProcessButton } from "@/components/StopProcessButton"
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import {
+  Upload,
+  FileUp,
+  CheckCircle,
+  AlertCircle,
+  AlertTriangle,
+  ShieldCheck,
+} from "lucide-react";
+import { validateFile } from "@/lib/validation";
+import { StopProcessButton } from "@/components/StopProcessButton";
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isValidating, setIsValidating] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [totalBatches, setTotalBatches] = useState(0)
-  const [currentBatch, setCurrentBatch] = useState(0)
-  const [elapsedTime, setElapsedTime] = useState(0)
-  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(0)
-  const [status, setStatus] = useState<"idle" | "processing" | "success" | "error" | "warning">("idle")
-  const [errorMessage, setErrorMessage] = useState("")
-  const [downloadUrl, setDownloadUrl] = useState("")
-  const [downloadFilename, setDownloadFilename] = useState("")
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
+  const [file, setFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [totalBatches, setTotalBatches] = useState(0);
+  const [currentBatch, setCurrentBatch] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(0);
+  const [status, setStatus] = useState<
+    "idle" | "processing" | "success" | "error" | "warning"
+  >("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
+  const [downloadFilename, setDownloadFilename] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Add a ref to track if file should be cleared after process
-  const clearFileRef = useRef(false)
+  const clearFileRef = useRef(false);
 
-  // Clear file when status changes to success, error, or idle after stop
   useEffect(() => {
-    if (clearFileRef.current && (status === "success" || status === "error" || status === "idle")) {
-      setFile(null)
-      clearFileRef.current = false
+    if (
+      clearFileRef.current &&
+      (status === "success" || status === "error" || status === "idle")
+    ) {
+      setFile(null);
+      clearFileRef.current = false;
     }
-  }, [status])
+  }, [status]);
 
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
-        eventSourceRef.current.close()
+        eventSourceRef.current.close();
       }
-    }
-  }, [])
+    };
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0]
+      const selectedFile = e.target.files[0];
 
-      setStatus("idle")
-      setErrorMessage("")
-      setProgress(0)
-      setCurrentBatch(0)
-      setTotalBatches(0)
-      setDownloadUrl("")
+      setStatus("idle");
+      setErrorMessage("");
+      setProgress(0);
+      setCurrentBatch(0);
+      setTotalBatches(0);
+      setDownloadUrl("");
 
-      setIsValidating(true)
+      setIsValidating(true);
 
       try {
-        const validationResult = await validateFile(selectedFile)
+        const validationResult = await validateFile(selectedFile);
 
         if (!validationResult.isValid) {
-          setStatus("warning")
-          setErrorMessage(validationResult.error || "Invalid file")
-          setFile(null)
+          setStatus("warning");
+          setErrorMessage(validationResult.error || "Invalid file");
+          setFile(null);
         } else {
-          setFile(selectedFile)
+          setFile(selectedFile);
         }
       } catch (error) {
-        setStatus("error")
-        setErrorMessage("File validation failed")
-        setFile(null)
+        setStatus("error");
+        setErrorMessage("File validation failed");
+        setFile(null);
       } finally {
-        setIsValidating(false)
+        setIsValidating(false);
       }
     }
-  }
+  };
 
   const handleUploadClick = () => {
-    fileInputRef.current?.click()
-  }
+    fileInputRef.current?.click();
+  };
 
   const processFile = async () => {
-    if (!file) return
+    if (!file) return;
 
-    setIsProcessing(true)
-    setStatus("processing")
-    setProgress(0)
-    setCurrentBatch(0)
-    setTotalBatches(0)
-    setElapsedTime(0)
-    setEstimatedTimeRemaining(0)
-    setErrorMessage("")
-    setDownloadUrl("")
+    setIsProcessing(true);
+    setStatus("processing");
+    setProgress(0);
+    setCurrentBatch(0);
+    setTotalBatches(0);
+    setElapsedTime(0);
+    setEstimatedTimeRemaining(0);
+    setErrorMessage("");
+    setDownloadUrl("");
 
-    const formData = new FormData()
-    formData.append("file", file)
+    const formData = new FormData();
+    formData.append("file", file);
 
     try {
       const uploadResponse = await fetch("/api/upload", {
         method: "POST",
         body: formData,
-      })
+      });
 
       if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json()
-        throw new Error(errorData.error || "Failed to upload file")
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || "Failed to upload file");
       }
 
-      const { jobId } = await uploadResponse.json()
+      const { jobId } = await uploadResponse.json();
 
       if (eventSourceRef.current) {
-        eventSourceRef.current.close()
+        eventSourceRef.current.close();
       }
 
-      const eventSource = new EventSource(`/api/progress?jobId=${jobId}`)
-      eventSourceRef.current = eventSource
+      const eventSource = new EventSource(`/api/progress?jobId=${jobId}`);
+      eventSourceRef.current = eventSource;
 
       eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data)
+        const data = JSON.parse(event.data);
 
         if (data.type === "progress") {
-          setCurrentBatch(data.currentBatch)
-          setTotalBatches(data.totalBatches)
-          setProgress((data.currentBatch / data.totalBatches) * 100)
-          setElapsedTime(data.elapsedTime)
-          setEstimatedTimeRemaining(data.estimatedTimeRemaining)
+          setCurrentBatch(data.currentBatch);
+          setTotalBatches(data.totalBatches);
+          setProgress((data.currentBatch / data.totalBatches) * 100);
+          setElapsedTime(data.elapsedTime);
+          setEstimatedTimeRemaining(data.estimatedTimeRemaining);
         } else if (data.type === "complete") {
-          setProgress(100)
-          setStatus("success")
-          setDownloadUrl(data.downloadUrl)
-          setDownloadFilename(data.filename)
-          eventSource.close()
+          setProgress(100);
+          setStatus("success");
+          setDownloadUrl(data.downloadUrl);
+          setDownloadFilename(data.filename);
+          eventSource.close();
         } else if (data.type === "error") {
-          setStatus("error")
-          setErrorMessage(data.message)
-          eventSource.close()
+          setStatus("error");
+          setErrorMessage(data.message);
+          eventSource.close();
         }
-      }
+      };
 
       eventSource.onerror = () => {
-        setStatus("error")
-        setErrorMessage("Connection to server lost. Please try again.")
-        eventSource.close()
-      }
+        setStatus("error");
+        setErrorMessage("Connection to server lost. Please try again.");
+        eventSource.close();
+      };
     } catch (error) {
-      setStatus("error")
-      setErrorMessage(error instanceof Error ? error.message : "An unknown error occurred")
+      setStatus("error");
+      setErrorMessage(
+        error instanceof Error ? error.message : "An unknown error occurred"
+      );
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false);
     }
-  }
+  };
 
   const formatTime = (seconds: number): string => {
-    if (seconds < 60) return `${Math.round(seconds)}s`
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = Math.round(seconds % 60)
-    return `${minutes}m ${remainingSeconds}s`
-  }
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.round(seconds % 60);
+    return `${minutes}m ${remainingSeconds}s`;
+  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24 bg-white">
@@ -188,7 +200,9 @@ export default function Home() {
               ) : (
                 <>
                   <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-                  <p className="text-sm text-gray-600">{file ? file.name : "Click to upload Excel file"}</p>
+                  <p className="text-sm text-gray-600">
+                    {file ? file.name : "Click to upload Excel file"}
+                  </p>
                   <p className="text-xs text-gray-400 mt-1">(.xlsx, .xls)</p>
                 </>
               )}
@@ -199,8 +213,9 @@ export default function Home() {
               <div>
                 <h3 className="font-medium text-blue-800">Privacy Notice</h3>
                 <p className="text-blue-700 text-sm mt-1">
-                  Your files are processed securely and are not stored permanently. All uploaded files and generated
-                  results are automatically deleted after processing.
+                  Your files are processed securely and are not stored
+                  permanently. All uploaded files and generated results are
+                  automatically deleted after processing.
                 </p>
               </div>
             </div>
@@ -209,9 +224,13 @@ export default function Home() {
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 flex items-start">
                 <AlertTriangle className="h-5 w-5 text-yellow-500 mr-3 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="font-medium text-yellow-800">File validation warning</h3>
+                  <h3 className="font-medium text-yellow-800">
+                    File validation warning
+                  </h3>
                   <p className="text-yellow-700 text-sm mt-1">{errorMessage}</p>
-                  <p className="text-yellow-700 text-sm mt-1">Please select a different file.</p>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Please select a different file.
+                  </p>
                 </div>
               </div>
             )}
@@ -247,8 +266,12 @@ export default function Home() {
                     <p className="font-medium">{formatTime(elapsedTime)}</p>
                   </div>
                   <div className="bg-gray-100 p-3 rounded-md">
-                    <p className="text-gray-500 mb-1">Estimated Time Remaining</p>
-                    <p className="font-medium">{formatTime(estimatedTimeRemaining)}</p>
+                    <p className="text-gray-500 mb-1">
+                      Estimated Time Remaining
+                    </p>
+                    <p className="font-medium">
+                      {formatTime(estimatedTimeRemaining)}
+                    </p>
                   </div>
                 </div>
 
@@ -256,16 +279,16 @@ export default function Home() {
                   <div className="flex justify-center mt-4">
                     <StopProcessButton
                       jobId={(() => {
-                        const url = eventSourceRef.current?.url
-                        const match = url?.match(/jobId=([\w-]+)/)
-                        return match ? match[1] : ""
+                        const url = eventSourceRef.current?.url;
+                        const match = url?.match(/jobId=([\w-]+)/);
+                        return match ? match[1] : "";
                       })()}
                       onStopped={() => {
-                        eventSourceRef.current?.close()
-                        setStatus("idle")
-                        setIsProcessing(false)
-                        setErrorMessage("")
-                        clearFileRef.current = true // Mark to clear file on next status change
+                        eventSourceRef.current?.close();
+                        setStatus("idle");
+                        setIsProcessing(false);
+                        setErrorMessage("");
+                        clearFileRef.current = true;
                       }}
                     />
                   </div>
@@ -277,8 +300,12 @@ export default function Home() {
               <div className="bg-green-50 border border-green-200 rounded-md p-4 flex items-start">
                 <CheckCircle className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="font-medium text-green-800">Processing complete!</h3>
-                  <p className="text-green-700 text-sm mt-1">All VINs have been successfully processed.</p>
+                  <h3 className="font-medium text-green-800">
+                    Processing complete!
+                  </h3>
+                  <p className="text-green-700 text-sm mt-1">
+                    All VINs have been successfully processed.
+                  </p>
                   {downloadUrl && (
                     <a
                       href={downloadUrl}
@@ -288,8 +315,8 @@ export default function Home() {
                       Download Results
                     </a>
                   )}
-                  {/* Mark to clear file after success */}
-                  {clearFileRef.current = true}
+                  {}
+                  {(clearFileRef.current = true)}
                 </div>
               </div>
             )}
@@ -298,13 +325,18 @@ export default function Home() {
               <div className="bg-red-50 border border-red-200 rounded-md p-4 flex items-start">
                 <AlertCircle className="h-5 w-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="font-medium text-red-800">Processing failed</h3>
+                  <h3 className="font-medium text-red-800">
+                    Processing failed
+                  </h3>
                   <p className="text-red-700 text-sm mt-1">
-                    {errorMessage || "An error occurred while processing the file."}
+                    {errorMessage ||
+                      "An error occurred while processing the file."}
                   </p>
-                  <p className="text-red-700 text-sm mt-1">Please check the console for more details.</p>
-                  {/* Mark to clear file after error */}
-                  {clearFileRef.current = true}
+                  <p className="text-red-700 text-sm mt-1">
+                    Please check the console for more details.
+                  </p>
+                  {}
+                  {(clearFileRef.current = true)}
                 </div>
               </div>
             )}
@@ -312,5 +344,5 @@ export default function Home() {
         </Card>
       </div>
     </main>
-  )
+  );
 }
