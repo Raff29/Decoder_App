@@ -153,14 +153,14 @@ export async function POST(request: NextRequest) {
     }
 
     execPromise(
-      `python ${scriptPath} --input "${filePath}" --job-id "${jobId}" --jobs-dir "${jobsDir}" --outputs-dir "${outputsDir}"`,
+      `node ${scriptPath} --input "${filePath}" --job-id "${jobId}" --jobs-dir "${jobsDir}" --outputs-dir "${outputsDir}"`,
       { env },
     ).catch((error) => {
-      console.error("Error executing Python script:", error)
+      console.error("Error executing Node.js script:", error)
       const errorStatus = {
         ...jobStatus,
         status: "error",
-        error: error.message || "Failed to execute Python script",
+        error: error.message || "Failed to execute Node.js script",
       }
       writeFile(jobStatusPath, JSON.stringify(errorStatus)).catch(console.error)
     })

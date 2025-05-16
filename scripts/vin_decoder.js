@@ -1,8 +1,5 @@
-// Node.js version of vin_decoder.py
-// Usage: node vin_decoder.js --input <input.xlsx> --job-id <id> --jobs-dir <dir> --outputs-dir <dir>
-
-const fs = require('fs');
-const path = require('path');
+const { writeFileSync } = require('fs');
+const { join, basename } = require('path');
 const axios = require('axios');
 const xlsx = require('xlsx');
 const csvWriter = require('csv-writer').createObjectCsvWriter;
@@ -21,8 +18,8 @@ const argv = yargs
   .argv;
 
 function updateJobStatus(statusData) {
-  const jobStatusPath = path.join(argv['jobs-dir'], `${argv['job-id']}.json`);
-  fs.writeFileSync(jobStatusPath, JSON.stringify(statusData));
+  const jobStatusPath = join(argv['jobs-dir'], `${argv['job-id']}.json`);
+  writeFileSync(jobStatusPath, JSON.stringify(statusData));
 }
 
 async function decodeBatchWithRetry(vins, retries = 3, delay = 5000) {
@@ -59,7 +56,7 @@ function chunkArray(arr, size) {
   let jobStatus = {
     id: argv['job-id'],
     status: 'processing',
-    filename: path.basename(argv.input),
+    filename: basename(argv.input),
     filePath: argv.input,
     progress: 0,
     currentBatch: 0,
@@ -85,7 +82,7 @@ function chunkArray(arr, size) {
     });
     const oemPart = oemCodes.size ? Array.from(oemCodes).sort().join('_') : 'UNKNOWN';
     const outputFilename = `decoded_${oemPart}_VINS_final.csv`;
-    const outputPath = path.join(argv['outputs-dir'], outputFilename);
+    const outputPath = join(argv['outputs-dir'], outputFilename);
 
     const vinColumnIndex = 1;
     const allVins = data.map(row => (row[vinColumnIndex] ? String(row[vinColumnIndex]).trim().toUpperCase() : null)).filter(vin => vin && vin.length === 17);
