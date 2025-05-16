@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     await writeFile(jobStatusPath, JSON.stringify(jobStatus));
 
-    const scriptPath = join(process.cwd(), "scripts", "vin_decoder.js");
+    const scriptPath = join(process.cwd(), "scripts", "vin_decoder.bundle.js");
 
     const env = {
       NODE_ENV: process.env.NODE_ENV || "development",
